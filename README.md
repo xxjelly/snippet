@@ -1,0 +1,2 @@
+# snippet
+some module code
