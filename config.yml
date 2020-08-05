@@ -1,0 +1,8 @@
+stocks:
+  - name: chengdi
+    code: '603887'
+    cost: 32.42
+
+  - name: yongchuang
+    code: '603901'
+    cost: 10.20
