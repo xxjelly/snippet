@@ -5,6 +5,10 @@ from threading import Timer
 from util import Config
 from util import WarnBox
 
+from tkinter import *
+import time
+
+
 c = Config()
 
 # past7 = time.time() - 604800
@@ -20,7 +24,7 @@ c = Config()
 
 
 class GetRealtimeData:
-    def __init__(self, code, callback):
+    def __init__(self, code, callback, ui_callback):
         try:
             rt = ts.get_realtime_quotes(code)
         except urllib.error.URLError as e:
@@ -29,10 +33,10 @@ class GetRealtimeData:
 
         cur_price = rt.price[0]
         high_price = rt.high[0]
-        callback(code, float(cur_price), float(high_price))
+        callback(code, float(cur_price), float(high_price), ui_callback)
 
 class QuitStrategy:
-    def __init__(self, code, cur_price, high_price):
+    def __init__(self, code, cur_price, high_price, ui_callback):
         info = Config.get_info_by_code(code)
         # calc
         cost = info['cost']
@@ -44,6 +48,8 @@ class QuitStrategy:
             if per >= 0.03:
                 msg = '亏损ing...name = {}, cost = {}\n\ncur = {}, high = {}\n\ncur_per = -{:.2f}%'.format(info['name'], info['cost'], cur_price, high_price, per * 100)
                 WarnBox(msg)
+
+            ui_callback(code, msg)
         else:
             high_per = (high_price - cost) / cost
             cur_per = (cur_price - cost) / cost
@@ -55,7 +61,8 @@ class QuitStrategy:
                 if high_per >= pair[0] and cur_per <= pair[1]:
                     msg = '盈利ing... name = {}, cost = {}\n\ncur = {}, high = {}\n\ncur_per = {:.2f}%, high_per = {:.2f}%'.format(info['name'], info['cost'], cur_price, high_price, cur_per * 100, high_per* 100)
                     WarnBox(msg)
-                    break;
+                    break
+            ui_callback(code, msg)
 
 class RepeatingTimer(Timer): 
     def run(self):
@@ -63,11 +70,63 @@ class RepeatingTimer(Timer):
             self.function(*self.args, **self.kwargs)
             self.finished.wait(self.interval)
 
-def do_work():
-    stocks = Config.get_stocks()
-    for item in stocks:
-        t = RepeatingTimer(1, GetRealtimeData, [item['code'], QuitStrategy])
-        t.start()        
+# def do_work():
+#     stocks = Config.get_stocks()
+#     for item in stocks:
+#         t = RepeatingTimer(1, GetRealtimeData, [item['code'], QuitStrategy])
+#         t.start()  
+# do_work()
+
+class Watch(Frame):
+    msec = 1000
+    def __init__(self, parent=None, **kw):
+        Frame.__init__(self, parent, kw)
+        self._running = False
+        self.timers = []
+        self.stock_timer_map = {}
+        stocks = Config.get_stocks()
+        for item in stocks:
+            strvar = StringVar()
+            strvar.set('init...')
+            self.stock_timer_map[item['code']] = strvar
+
+            msg_label = Label(self, textvariable = strvar)
+            msg_label.pack()
+
+        self.flag = True
 
 
-do_work()
+    def OnClose(self, event):
+        print("closing....")
+
+    def _update(self):
+        stocks = Config.get_stocks()
+        for item in stocks:
+            t = RepeatingTimer(1, GetRealtimeData, [item['code'], QuitStrategy, self._settime])
+            t.start()
+            self.timers.append(t)
+
+
+    def _settime(self, stock_code, msg):
+        strvar = self.stock_timer_map[stock_code]
+        strvar.set(msg)
+
+    def start(self):
+        self._update()
+        self.pack(side = TOP)
+
+if __name__ == '__main__':
+    def main():
+        root = Tk()
+        root.title('***伟伟快看***')
+        root.geometry('800x400')
+        frame1 = Frame(root)
+        frame1.pack(side = BOTTOM)
+
+        mw = Watch(root)
+        mywatch = Button(frame1, text = '走你...', command = mw.start)
+        mywatch.pack(side = LEFT)
+        mw.Bind(wx.EVT_CLOSE, mw.OnClose)
+
+        root.mainloop()
+    main()
