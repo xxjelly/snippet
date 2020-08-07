@@ -1,8 +1,9 @@
+import os
+import yaml
+
 import tkinter
 import tkinter.messagebox as mbox
 
-import os
-import yaml
 
 class WarnBox():
     def __init__(self, msg):
